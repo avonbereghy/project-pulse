@@ -1,9 +1,11 @@
 import Foundation
 
 struct DataStore: Sendable {
+    // Use homeDirectoryForCurrentUser (returns real home, not sandbox container)
+    // so both the main app and sandboxed widget resolve to the same path
     private static let sharedDir: URL = {
-        let dir = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask)[0]
-            .appendingPathComponent("ProjectPulse")
+        let dir = FileManager.default.homeDirectoryForCurrentUser
+            .appendingPathComponent("Library/Application Support/ProjectPulse")
         try? FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
         return dir
     }()
