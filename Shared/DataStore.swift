@@ -1,36 +1,71 @@
 import Foundation
 
 struct DataStore: Sendable {
-    // Use homeDirectoryForCurrentUser (returns real home, not sandbox container)
-    // so both the main app and sandboxed widget resolve to the same path
-    private static let sharedDir: URL = {
+    private static let widgetBundleID = "com.avb.projectpulse.widget"
+
+    // Main app dir (for the app's own reads)
+    private static let appDir: URL = {
         let dir = FileManager.default.homeDirectoryForCurrentUser
             .appendingPathComponent("Library/Application Support/ProjectPulse")
         try? FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
         return dir
     }()
 
-    private static let reposFile = sharedDir.appendingPathComponent("repos.json")
-    private static let exclusionsFile = sharedDir.appendingPathComponent("exclusions.json")
-    private static let settingsFile = sharedDir.appendingPathComponent("settings.json")
+    // Widget container dir (the main app writes here so the sandboxed widget can read)
+    private static let widgetDir: URL = {
+        let dir = FileManager.default.homeDirectoryForCurrentUser
+            .appendingPathComponent("Library/Containers/\(widgetBundleID)/Data/Library/Application Support/ProjectPulse")
+        try? FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
+        return dir
+    }()
+
+    // The widget reads from its own sandboxed Application Support
+    // (which is actually widgetDir above from the system's perspective)
+    private static let readDir: URL = {
+        let dir = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask)[0]
+            .appendingPathComponent("ProjectPulse")
+        try? FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
+        return dir
+    }()
+
+    // Detect if running inside a sandbox container
+    private static let isSandboxed: Bool = {
+        ProcessInfo.processInfo.environment["APP_SANDBOX_CONTAINER_ID"] != nil
+    }()
+
+    private static func readFile(_ name: String) -> URL {
+        if isSandboxed {
+            return readDir.appendingPathComponent(name)
+        }
+        return appDir.appendingPathComponent(name)
+    }
+
+    private static func writeData(_ data: Data, filename: String) throws {
+        // Always write to app dir
+        try data.write(to: appDir.appendingPathComponent(filename), options: .atomic)
+        // Also write to widget container so the sandboxed widget can read it
+        if !isSandboxed {
+            try? data.write(to: widgetDir.appendingPathComponent(filename), options: .atomic)
+        }
+    }
 
     func saveRepos(_ repos: [RepoInfo]) throws {
         let data = try JSONEncoder().encode(repos)
-        try data.write(to: Self.reposFile, options: .atomic)
+        try Self.writeData(data, filename: "repos.json")
     }
 
     func loadRepos() throws -> [RepoInfo] {
-        let data = try Data(contentsOf: Self.reposFile)
+        let data = try Data(contentsOf: Self.readFile("repos.json"))
         return try JSONDecoder().decode([RepoInfo].self, from: data)
     }
 
     func saveExclusions(_ paths: Set<String>) throws {
         let data = try JSONEncoder().encode(Array(paths))
-        try data.write(to: Self.exclusionsFile, options: .atomic)
+        try Self.writeData(data, filename: "exclusions.json")
     }
 
     func loadExclusions() -> Set<String> {
-        guard let data = try? Data(contentsOf: Self.exclusionsFile),
+        guard let data = try? Data(contentsOf: Self.readFile("exclusions.json")),
               let paths = try? JSONDecoder().decode([String].self, from: data) else {
             return []
         }
@@ -39,11 +74,11 @@ struct DataStore: Sendable {
 
     func saveSettings(_ settings: AppSettings) throws {
         let data = try JSONEncoder().encode(settings)
-        try data.write(to: Self.settingsFile, options: .atomic)
+        try Self.writeData(data, filename: "settings.json")
     }
 
     func loadSettings() -> AppSettings {
-        guard let data = try? Data(contentsOf: Self.settingsFile),
+        guard let data = try? Data(contentsOf: Self.readFile("settings.json")),
               let settings = try? JSONDecoder().decode(AppSettings.self, from: data) else {
             return AppSettings()
         }
