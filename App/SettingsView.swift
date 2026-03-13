@@ -41,6 +41,17 @@ struct SettingsView: View {
                 }
             }
 
+            Section("Appearance") {
+                HStack {
+                    Text("Chart Opacity: \(Int(editedSettings.windowOpacity * 100))%")
+                    Slider(value: $editedSettings.windowOpacity, in: 0.3...1.0, step: 0.05)
+                        .onChange(of: editedSettings.windowOpacity) { isDirty = true }
+                }
+
+                Toggle("Show in Menu Bar", isOn: $editedSettings.showMenuBar)
+                    .onChange(of: editedSettings.showMenuBar) { isDirty = true }
+            }
+
             Section("Excluded Repos") {
                 if viewModel.excludedRepos.isEmpty {
                     Text("No excluded repos")

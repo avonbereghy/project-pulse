@@ -42,17 +42,33 @@ struct ContentView: View {
 
 struct DashboardView: View {
     @Environment(RepoListViewModel.self) private var viewModel
+    @State private var chartsReady = false
 
     var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 24) {
                 headerSection
-                graphSection
+                if chartsReady {
+                    graphSection
+                } else {
+                    HStack(spacing: 16) {
+                        RoundedRectangle(cornerRadius: 10)
+                            .fill(Color.primary.opacity(0.04))
+                            .frame(height: 200)
+                        RoundedRectangle(cornerRadius: 10)
+                            .fill(Color.primary.opacity(0.04))
+                            .frame(height: 200)
+                    }
+                }
                 repoListSection
             }
             .padding(24)
         }
         .navigationTitle("ProjectPulse")
+        .task {
+            try? await Task.sleep(for: .milliseconds(300))
+            chartsReady = true
+        }
         .toolbar {
             ToolbarItem(placement: .automatic) {
                 HStack(spacing: 12) {
@@ -167,7 +183,7 @@ struct DashboardView: View {
                         y: .value("Commits", day.count),
                         series: .value("Repo", repo.name)
                     )
-                    .foregroundStyle(Self.repoColors[i % Self.repoColors.count])
+                    .foregroundStyle(Self.repoColors[i % Self.repoColors.count].opacity(viewModel.settings.windowOpacity))
                     .lineStyle(StrokeStyle(lineWidth: 2))
                     .interpolationMethod(.catmullRom)
                 }
@@ -220,10 +236,48 @@ struct DashboardView: View {
                 Text("Recent Repos")
                     .font(.system(.headline, weight: .semibold))
                 Spacer()
-                if !viewModel.displayedRepos.isEmpty {
-                    Text("\(viewModel.displayedRepos.count) repos")
-                        .font(.caption)
-                        .foregroundStyle(.tertiary)
+
+                HStack(spacing: 8) {
+                    Menu {
+                        ForEach(RepoSortField.allCases, id: \.self) { field in
+                            Button {
+                                viewModel.sortField = field
+                            } label: {
+                                HStack {
+                                    Text(field.rawValue)
+                                    if field == viewModel.sortField {
+                                        Image(systemName: "checkmark")
+                                    }
+                                }
+                            }
+                        }
+                    } label: {
+                        HStack(spacing: 3) {
+                            Image(systemName: "arrow.up.arrow.down")
+                                .font(.system(size: 9, weight: .semibold))
+                            Text(viewModel.sortField.rawValue)
+                                .font(.system(size: 11, weight: .medium))
+                        }
+                        .foregroundStyle(.secondary)
+                    }
+                    .menuStyle(.borderlessButton)
+                    .fixedSize()
+
+                    Button {
+                        viewModel.sortAscending.toggle()
+                    } label: {
+                        Image(systemName: viewModel.sortAscending ? "chevron.up" : "chevron.down")
+                            .font(.system(size: 9, weight: .bold))
+                            .foregroundStyle(.secondary)
+                    }
+                    .buttonStyle(.borderless)
+                    .help(viewModel.sortAscending ? "Ascending" : "Descending")
+
+                    if !viewModel.displayedRepos.isEmpty {
+                        Text("\(viewModel.displayedRepos.count) repos")
+                            .font(.caption)
+                            .foregroundStyle(.tertiary)
+                    }
                 }
             }
             .padding(.horizontal, 16)

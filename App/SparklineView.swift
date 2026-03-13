@@ -4,6 +4,7 @@ import Charts
 struct SparklineView: View {
     let commitDays: [CommitDay]
     var dayCount: Int = 30
+    @State private var isVisible = false
 
     private var recentDays: [CommitDay] {
         Array(commitDays.suffix(dayCount))
@@ -18,7 +19,13 @@ struct SparklineView: View {
     }
 
     var body: some View {
-        if hasData {
+        if !isVisible {
+            Rectangle()
+                .fill(Color.primary.opacity(0.04))
+                .frame(width: 200, height: 44)
+                .cornerRadius(4)
+                .onAppear { isVisible = true }
+        } else if hasData {
             Chart(recentDays, id: \.date) { day in
                 BarMark(
                     x: .value("Date", day.date, unit: .day),

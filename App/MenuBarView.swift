@@ -3,6 +3,7 @@ import Charts
 
 struct MenuBarView: View {
     @Environment(RepoListViewModel.self) private var viewModel
+    @State private var isVisible = false
 
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
@@ -15,7 +16,7 @@ struct MenuBarView: View {
                     ProgressView()
                         .scaleEffect(0.5)
                 } else {
-                    Text("\(viewModel.totalCommits) commits")
+                    Text("\(viewModel.recentTotalCommits) commits · 7d")
                         .font(.system(.caption2, design: .rounded, weight: .medium))
                         .foregroundStyle(.secondary)
                 }
@@ -27,25 +28,30 @@ struct MenuBarView: View {
             Divider()
                 .padding(.horizontal, 8)
 
-            // Repo list with charts
-            ScrollView {
-                VStack(spacing: 0) {
-                    if viewModel.displayedRepos.isEmpty {
-                        Text("No repos found")
-                            .foregroundStyle(.secondary)
-                            .padding(20)
-                    } else {
-                        ForEach(viewModel.displayedRepos.prefix(7)) { repo in
-                            MenuBarRepoRow(repo: repo)
-                            if repo.id != viewModel.displayedRepos.prefix(7).last?.id {
-                                Divider()
-                                    .padding(.horizontal, 14)
+            // Repo list with charts — only render when popup is visible
+            if isVisible {
+                ScrollView {
+                    VStack(spacing: 0) {
+                        if viewModel.displayedRepos.isEmpty {
+                            Text("No repos found")
+                                .foregroundStyle(.secondary)
+                                .padding(20)
+                        } else {
+                            let menuRepos = viewModel.menuBarRepos
+                            ForEach(menuRepos) { repo in
+                                MenuBarRepoRow(repo: repo)
+                                if repo.id != menuRepos.last?.id {
+                                    Divider()
+                                        .padding(.horizontal, 14)
+                                }
                             }
                         }
                     }
                 }
+                .frame(maxHeight: 420)
+            } else {
+                Color.clear.frame(height: 100)
             }
-            .frame(maxHeight: 420)
 
             Divider()
                 .padding(.horizontal, 8)
@@ -72,6 +78,8 @@ struct MenuBarView: View {
             .padding(.vertical, 8)
         }
         .frame(width: 340)
+        .onAppear { isVisible = true }
+        .onDisappear { isVisible = false }
     }
 }
 
@@ -100,7 +108,7 @@ struct MenuBarRepoRow: View {
 
                 Spacer()
 
-                Text("\(repo.totalCommits)")
+                Text("\(repo.recentCommits)")
                     .font(.system(.caption, design: .rounded, weight: .bold))
                     .foregroundStyle(.green)
                 Text("commits")

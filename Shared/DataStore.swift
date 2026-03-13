@@ -95,4 +95,8 @@ struct AppSettings: Codable, Sendable {
         "andy@homeperhaps.com",
         "65372380+avonbereghy@users.noreply.github.com"
     ]
+    var sortField: String = "7d Commits"
+    var sortAscending: Bool = false
+    var windowOpacity: Double = 1.0
+    var showMenuBar: Bool = true
 }

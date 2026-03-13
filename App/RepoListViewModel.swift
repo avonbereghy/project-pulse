@@ -1,6 +1,13 @@
 import Foundation
 import SwiftUI
 
+enum RepoSortField: String, CaseIterable {
+    case totalCommits = "Total Commits"
+    case recentCommits = "7d Commits"
+    case lastCommit = "Last Commit"
+    case name = "Name"
+}
+
 @Observable
 @MainActor
 final class RepoListViewModel {
@@ -10,21 +17,52 @@ final class RepoListViewModel {
     var isScanning: Bool = false
     var lastScanDate: Date? = nil
     var searchText: String = ""
+    var sortField: RepoSortField = .recentCommits {
+        didSet { persistSortPrefs() }
+    }
+    var sortAscending: Bool = false {
+        didSet { persistSortPrefs() }
+    }
 
     private let dataStore = DataStore()
     private var rescanTimer: Timer?
+    private var isLoading = false
 
     var displayedRepos: [RepoInfo] {
         let filtered = allRepos.filter { !excludedPaths.contains($0.path) }
         let searched = searchText.isEmpty ? filtered : filtered.filter {
             $0.name.localizedCaseInsensitiveContains(searchText)
         }
-        return Array(searched.sorted { $0.totalCommits > $1.totalCommits }.prefix(settings.displayCount))
+        let sorted = searched.sorted { a, b in
+            let result: Bool
+            switch sortField {
+            case .totalCommits:
+                result = a.totalCommits > b.totalCommits
+            case .recentCommits:
+                result = a.recentCommits > b.recentCommits
+            case .lastCommit:
+                result = (a.lastCommitDate ?? .distantPast) > (b.lastCommitDate ?? .distantPast)
+            case .name:
+                result = a.name.localizedCaseInsensitiveCompare(b.name) == .orderedAscending
+            }
+            return sortAscending ? !result : result
+        }
+        return Array(sorted.prefix(settings.displayCount))
     }
 
     var excludedRepos: [RepoInfo] {
         allRepos.filter { excludedPaths.contains($0.path) }
             .sorted { $0.name.localizedCaseInsensitiveCompare($1.name) == .orderedAscending }
+    }
+
+    var menuBarRepos: [RepoInfo] {
+        let filtered = allRepos.filter { !excludedPaths.contains($0.path) }
+        return Array(filtered.sorted { $0.recentCommits > $1.recentCommits }.prefix(7))
+    }
+
+    var recentTotalCommits: Int {
+        allRepos.filter { !excludedPaths.contains($0.path) }
+            .reduce(0) { $0 + $1.recentCommits }
     }
 
     var aggregateCommitDays: [CommitDay] {
@@ -56,15 +94,35 @@ final class RepoListViewModel {
     }
 
     func load() {
-        settings = dataStore.loadSettings()
-        excludedPaths = dataStore.loadExclusions()
+        isLoading = true
 
-        if let cached = try? dataStore.loadRepos() {
-            allRepos = cached
+        // Load all data before setting any observable properties
+        let loadedSettings = dataStore.loadSettings()
+        let loadedSort = RepoSortField(rawValue: loadedSettings.sortField) ?? .recentCommits
+        let loadedAscending = loadedSettings.sortAscending
+        let loadedExclusions = dataStore.loadExclusions()
+        let loadedRepos = try? dataStore.loadRepos()
+
+        // Set all at once to minimize re-render cascades
+        settings = loadedSettings
+        sortField = loadedSort
+        sortAscending = loadedAscending
+        excludedPaths = loadedExclusions
+
+        isLoading = false
+
+        // Defer setting allRepos so UI renders empty first, then populates
+        Task { @MainActor in
+            try? await Task.sleep(for: .milliseconds(100))
+            if let repos = loadedRepos {
+                allRepos = repos
+            }
+            startRescanTimer()
+
+            // Then scan in background
+            try? await Task.sleep(for: .seconds(2))
+            await scan()
         }
-
-        startRescanTimer()
-        Task { await scan() }
     }
 
     func scan() async {
@@ -99,6 +157,13 @@ final class RepoListViewModel {
         settings = newSettings
         try? dataStore.saveSettings(newSettings)
         Task { await scan() }
+    }
+
+    private func persistSortPrefs() {
+        guard !isLoading else { return }
+        settings.sortField = sortField.rawValue
+        settings.sortAscending = sortAscending
+        try? dataStore.saveSettings(settings)
     }
 
     private func startRescanTimer() {

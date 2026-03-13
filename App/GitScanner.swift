@@ -22,24 +22,17 @@ actor GitScanner {
     }
 
     func scanAll() async -> [RepoInfo] {
-        let repoPaths = findGitRepos()
-        return await withTaskGroup(of: RepoInfo?.self, returning: [RepoInfo].self) { group in
-            for path in repoPaths {
-                group.addTask {
-                    await self.scanRepo(at: path)
-                }
+        let repoPaths = await Task.detached { self.findGitRepos() }.value
+        var results: [RepoInfo] = []
+        for path in repoPaths {
+            if let repo = await scanRepo(at: path) {
+                results.append(repo)
             }
-            var results: [RepoInfo] = []
-            for await result in group {
-                if let repo = result {
-                    results.append(repo)
-                }
-            }
-            return results.sorted { $0.totalCommits > $1.totalCommits }
         }
+        return results.sorted { $0.totalCommits > $1.totalCommits }
     }
 
-    private func findGitRepos() -> [String] {
+    private nonisolated func findGitRepos() -> [String] {
         let fileManager = FileManager.default
         let rootURL = URL(fileURLWithPath: rootPath)
         var repos: [String] = []
@@ -74,7 +67,7 @@ actor GitScanner {
         return repos
     }
 
-    private func scanRepo(at path: String) async -> RepoInfo? {
+    private nonisolated func scanRepo(at path: String) async -> RepoInfo? {
         let sinceDate = Calendar.current.date(byAdding: .day, value: -dayRange, to: Date()) ?? Date()
         let formatter = ISO8601DateFormatter()
         formatter.formatOptions = [.withFullDate]
@@ -86,7 +79,7 @@ actor GitScanner {
         }
 
         let args = ["-C", path, "log", "--format=%at", "--all", "--since=\(sinceStr)"] + authorArgs
-        guard let output = runGit(args: args) else { return nil }
+        guard let output = await Task.detached(priority: .utility) { self.runGit(args: args) }.value else { return nil }
 
         let timestamps = output
             .split(separator: "\n")
@@ -104,7 +97,7 @@ actor GitScanner {
         )
     }
 
-    private func aggregateCommits(timestamps: [TimeInterval]) -> [CommitDay] {
+    private nonisolated func aggregateCommits(timestamps: [TimeInterval]) -> [CommitDay] {
         let calendar = Calendar.current
         let today = calendar.startOfDay(for: Date())
 
