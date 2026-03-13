@@ -30,7 +30,7 @@ struct Provider: TimelineProvider {
     private func loadEntry() -> RepoEntry {
         let repos = (try? dataStore.loadRepos()) ?? []
         let excluded = dataStore.loadExclusions()
-        let active = repos.filter { !excluded.contains($0.path) }
+        let active = repos.filter { !excluded.contains($0.path) }.sorted { $0.recentCommits > $1.recentCommits }
 
         let calendar = Calendar.current
         let today = calendar.startOfDay(for: Date())
@@ -54,7 +54,7 @@ struct Provider: TimelineProvider {
             date: Date(),
             repos: active,
             excludedPaths: excluded,
-            totalCommits: active.reduce(0) { $0 + $1.totalCommits },
+            totalCommits: active.reduce(0) { $0 + $1.recentCommits },
             commitDays: commitDays
         )
     }
@@ -62,7 +62,7 @@ struct Provider: TimelineProvider {
 
 // MARK: - Helpers
 
-private let repoColors: [Color] = [.green, .blue, .orange, .purple, .pink, .cyan, .yellow, .mint]
+private let repoColors: [Color] = [.green, .blue, .orange, .cyan, .yellow, .mint, .teal, .indigo]
 
 private func recentDays(_ days: [CommitDay], count: Int = 30) -> [CommitDay] {
     Array(days.suffix(count))
@@ -114,7 +114,13 @@ struct SmallWidgetView: View {
                     .foregroundStyle(.green.opacity(0.15).gradient)
                     .interpolationMethod(.catmullRom)
                 }
-                .chartXAxis(.hidden)
+                .chartXAxis {
+                    AxisMarks(values: .stride(by: .day, count: 7)) { _ in
+                        AxisValueLabel(format: .dateTime.day())
+                            .font(.system(size: 7, weight: .medium))
+                            .foregroundStyle(.secondary)
+                    }
+                }
                 .chartYAxis(.hidden)
             } else {
                 Spacer()
@@ -141,10 +147,10 @@ struct SmallWidgetView: View {
 struct MediumWidgetView: View {
     let entry: RepoEntry
 
-    private var topRepos: [RepoInfo] { Array(entry.repos.prefix(3)) }
+    private var topRepos: [RepoInfo] { Array(entry.repos.prefix(6)) }
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 6) {
+        VStack(alignment: .leading, spacing: 4) {
             // Header
             HStack(alignment: .firstTextBaseline) {
                 Image(systemName: "chart.line.uptrend.xyaxis")
@@ -154,7 +160,7 @@ struct MediumWidgetView: View {
                     .font(.system(size: 10, weight: .semibold))
                     .foregroundStyle(.secondary)
                 Spacer()
-                Text("\(entry.totalCommits) commits")
+                Text("\(entry.totalCommits) commits · 7d")
                     .font(.system(size: 10, weight: .bold, design: .rounded))
                     .foregroundStyle(.secondary)
             }
@@ -186,8 +192,8 @@ struct MediumWidgetView: View {
                 .chartXAxis {
                     AxisMarks(values: .stride(by: .day, count: 7)) { _ in
                         AxisValueLabel(format: .dateTime.month(.abbreviated).day())
-                            .font(.system(size: 7))
-                            .foregroundStyle(.tertiary)
+                            .font(.system(size: 8, weight: .medium))
+                            .foregroundStyle(.secondary)
                     }
                 }
                 .chartYAxis {
@@ -204,19 +210,16 @@ struct MediumWidgetView: View {
                     }
                 }
 
-                // Legend
-                HStack(spacing: 10) {
+                // Legend - wrapping layout
+                HStack(spacing: 6) {
                     ForEach(Array(topRepos.enumerated()), id: \.element.id) { i, repo in
-                        HStack(spacing: 3) {
+                        HStack(spacing: 2) {
                             Circle()
                                 .fill(repoColors[i % repoColors.count])
-                                .frame(width: 5, height: 5)
+                                .frame(width: 4, height: 4)
                             Text(repo.name)
-                                .font(.system(size: 9, weight: .medium))
+                                .font(.system(size: 8, weight: .medium))
                                 .lineLimit(1)
-                            Text("\(repo.totalCommits)")
-                                .font(.system(size: 8, design: .rounded))
-                                .foregroundStyle(.secondary)
                         }
                     }
                 }
@@ -231,7 +234,7 @@ struct MediumWidgetView: View {
 struct LargeWidgetView: View {
     let entry: RepoEntry
 
-    private var topRepos: [RepoInfo] { Array(entry.repos.prefix(5)) }
+    private var topRepos: [RepoInfo] { Array(entry.repos.prefix(7)) }
 
     var body: some View {
         VStack(alignment: .leading, spacing: 6) {
@@ -244,7 +247,7 @@ struct LargeWidgetView: View {
                     .font(.system(size: 12, weight: .semibold))
                     .foregroundStyle(.secondary)
                 Spacer()
-                Text("\(entry.totalCommits) commits")
+                Text("\(entry.totalCommits) commits · 7d")
                     .font(.system(size: 11, weight: .bold, design: .rounded))
             }
 
@@ -281,7 +284,7 @@ struct RepoLineRow: View {
                     .font(.system(size: 11, weight: .semibold))
                     .lineLimit(1)
                 HStack(spacing: 3) {
-                    Text("\(repo.totalCommits)")
+                    Text("\(repo.recentCommits)")
                         .font(.system(size: 9, weight: .bold, design: .rounded))
                         .foregroundStyle(color)
                     Text(relativeDate(repo.lastCommitDate))
@@ -310,10 +313,10 @@ struct RepoLineRow: View {
                     .interpolationMethod(.catmullRom)
                 }
                 .chartXAxis {
-                    AxisMarks(values: .stride(by: .day, count: 14)) { _ in
-                        AxisValueLabel(format: .dateTime.month(.abbreviated).day())
-                            .font(.system(size: 6))
-                            .foregroundStyle(.quaternary)
+                    AxisMarks(values: .stride(by: .day, count: 10)) { _ in
+                        AxisValueLabel(format: .dateTime.day())
+                            .font(.system(size: 7, weight: .medium))
+                            .foregroundStyle(.secondary)
                     }
                 }
                 .chartYAxis {

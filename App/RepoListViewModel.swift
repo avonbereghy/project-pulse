@@ -19,7 +19,7 @@ final class RepoListViewModel {
         let searched = searchText.isEmpty ? filtered : filtered.filter {
             $0.name.localizedCaseInsensitiveContains(searchText)
         }
-        return Array(searched.prefix(settings.displayCount))
+        return Array(searched.sorted { $0.totalCommits > $1.totalCommits }.prefix(settings.displayCount))
     }
 
     var excludedRepos: [RepoInfo] {

@@ -35,7 +35,7 @@ actor GitScanner {
                     results.append(repo)
                 }
             }
-            return results.sorted { ($0.lastCommitDate ?? .distantPast) > ($1.lastCommitDate ?? .distantPast) }
+            return results.sorted { $0.totalCommits > $1.totalCommits }
         }
     }
 

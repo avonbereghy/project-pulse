@@ -1,4 +1,5 @@
 import SwiftUI
+import Charts
 
 enum SidebarItem: String, Hashable {
     case dashboard
@@ -104,33 +105,115 @@ struct DashboardView: View {
         }
     }
 
-    private var graphSection: some View {
-        VStack(alignment: .leading, spacing: 0) {
-            HStack {
-                Text("Contribution Activity")
-                    .font(.system(.headline, weight: .semibold))
-                Spacer()
-                Text("\(viewModel.settings.dayRange) days")
-                    .font(.caption)
-                    .foregroundStyle(.tertiary)
-            }
-            .padding(.horizontal, 16)
-            .padding(.top, 14)
-            .padding(.bottom, 4)
+    private static let repoColors: [Color] = [.green, .blue, .orange, .cyan, .yellow, .mint, .teal, .indigo]
 
-            ContributionGraphView(commitDays: viewModel.aggregateCommitDays)
+    private var graphSection: some View {
+        HStack(alignment: .top, spacing: 16) {
+            // Contribution heatmap
+            VStack(alignment: .leading, spacing: 0) {
+                HStack {
+                    Text("Contribution Activity")
+                        .font(.system(.headline, weight: .semibold))
+                    Spacer()
+                    Text("\(viewModel.settings.dayRange) days")
+                        .font(.caption)
+                        .foregroundStyle(.tertiary)
+                }
+                .padding(.horizontal, 16)
+                .padding(.top, 14)
+                .padding(.bottom, 4)
+
+                ContributionGraphView(commitDays: viewModel.aggregateCommitDays)
+            }
+            .cardStyle()
+
+            // Per-repo overlaid line graph
+            VStack(alignment: .leading, spacing: 0) {
+                HStack {
+                    Text("Repo Activity")
+                        .font(.system(.headline, weight: .semibold))
+                    Spacer()
+                    Text("\(viewModel.totalCommits) commits")
+                        .font(.caption)
+                        .foregroundStyle(.tertiary)
+                }
+                .padding(.horizontal, 16)
+                .padding(.top, 14)
+                .padding(.bottom, 8)
+
+                repoLineChart
+                    .padding(.horizontal, 16)
+                    .padding(.bottom, 8)
+
+                repoLegend
+                    .padding(.horizontal, 16)
+                    .padding(.bottom, 14)
+            }
+            .cardStyle()
         }
-        .background(
-            RoundedRectangle(cornerRadius: 10)
-                .fill(.background)
-                .shadow(color: .black.opacity(0.06), radius: 3, y: 1)
-        )
-        .overlay(
-            RoundedRectangle(cornerRadius: 10)
-                .stroke(Color.primary.opacity(0.05), lineWidth: 1)
-        )
     }
 
+    private var topReposForChart: [RepoInfo] {
+        Array(viewModel.displayedRepos.filter { $0.totalCommits > 0 }.prefix(8))
+    }
+
+    private var repoLineChart: some View {
+        Chart {
+            ForEach(Array(topReposForChart.enumerated()), id: \.element.id) { i, repo in
+                let days = Array(repo.commitDays.suffix(30))
+                ForEach(days, id: \.date) { day in
+                    LineMark(
+                        x: .value("Day", day.date, unit: .day),
+                        y: .value("Commits", day.count),
+                        series: .value("Repo", repo.name)
+                    )
+                    .foregroundStyle(Self.repoColors[i % Self.repoColors.count])
+                    .lineStyle(StrokeStyle(lineWidth: 2))
+                    .interpolationMethod(.catmullRom)
+                }
+            }
+        }
+        .chartXAxis {
+            AxisMarks(values: .stride(by: .day, count: 7)) { _ in
+                AxisGridLine(stroke: StrokeStyle(lineWidth: 0.3, dash: [2]))
+                    .foregroundStyle(.quaternary)
+                AxisValueLabel(format: .dateTime.month(.abbreviated).day())
+                    .font(.system(size: 10))
+                    .foregroundStyle(.secondary)
+            }
+        }
+        .chartYAxis {
+            AxisMarks(position: .leading) { value in
+                AxisGridLine(stroke: StrokeStyle(lineWidth: 0.3, dash: [2]))
+                    .foregroundStyle(.quaternary)
+                AxisValueLabel {
+                    if let v = value.as(Int.self) {
+                        Text("\(v)")
+                            .font(.system(size: 10))
+                            .foregroundStyle(.secondary)
+                    }
+                }
+            }
+        }
+        .frame(height: 140)
+    }
+
+    private var repoLegend: some View {
+        FlowLayout(spacing: 8) {
+            ForEach(Array(topReposForChart.enumerated()), id: \.element.id) { i, repo in
+                HStack(spacing: 4) {
+                    Circle()
+                        .fill(Self.repoColors[i % Self.repoColors.count])
+                        .frame(width: 6, height: 6)
+                    Text(repo.name)
+                        .font(.system(size: 11, weight: .medium))
+                        .lineLimit(1)
+                }
+            }
+        }
+    }
+
+    @ViewBuilder
     private var repoListSection: some View {
         VStack(alignment: .leading, spacing: 0) {
             HStack(alignment: .firstTextBaseline) {
@@ -179,15 +262,7 @@ struct DashboardView: View {
                 .padding(.bottom, 8)
             }
         }
-        .background(
-            RoundedRectangle(cornerRadius: 10)
-                .fill(.background)
-                .shadow(color: .black.opacity(0.06), radius: 3, y: 1)
-        )
-        .overlay(
-            RoundedRectangle(cornerRadius: 10)
-                .stroke(Color.primary.opacity(0.05), lineWidth: 1)
-        )
+        .cardStyle()
     }
 
     private var lastScanText: String {
@@ -271,5 +346,70 @@ struct StepperControl: View {
         }
         .menuStyle(.borderlessButton)
         .fixedSize()
+    }
+}
+
+// MARK: - Card Style
+
+private struct CardModifier: ViewModifier {
+    func body(content: Content) -> some View {
+        content
+            .background(
+                RoundedRectangle(cornerRadius: 10)
+                    .fill(.background)
+                    .shadow(color: .black.opacity(0.06), radius: 3, y: 1)
+            )
+            .overlay(
+                RoundedRectangle(cornerRadius: 10)
+                    .stroke(Color.primary.opacity(0.05), lineWidth: 1)
+            )
+    }
+}
+
+extension View {
+    func cardStyle() -> some View {
+        modifier(CardModifier())
+    }
+}
+
+// MARK: - Flow Layout
+
+struct FlowLayout: Layout {
+    var spacing: CGFloat = 8
+
+    func sizeThatFits(proposal: ProposedViewSize, subviews: Subviews, cache: inout ()) -> CGSize {
+        let result = arrange(proposal: proposal, subviews: subviews)
+        return result.size
+    }
+
+    func placeSubviews(in bounds: CGRect, proposal: ProposedViewSize, subviews: Subviews, cache: inout ()) {
+        let result = arrange(proposal: proposal, subviews: subviews)
+        for (index, position) in result.positions.enumerated() {
+            subviews[index].place(at: CGPoint(x: bounds.minX + position.x, y: bounds.minY + position.y), proposal: .unspecified)
+        }
+    }
+
+    private func arrange(proposal: ProposedViewSize, subviews: Subviews) -> (size: CGSize, positions: [CGPoint]) {
+        let maxWidth = proposal.width ?? .infinity
+        var positions: [CGPoint] = []
+        var x: CGFloat = 0
+        var y: CGFloat = 0
+        var rowHeight: CGFloat = 0
+        var totalSize: CGSize = .zero
+
+        for subview in subviews {
+            let size = subview.sizeThatFits(.unspecified)
+            if x + size.width > maxWidth, x > 0 {
+                x = 0
+                y += rowHeight + spacing
+                rowHeight = 0
+            }
+            positions.append(CGPoint(x: x, y: y))
+            rowHeight = max(rowHeight, size.height)
+            x += size.width + spacing
+            totalSize.width = max(totalSize.width, x - spacing)
+        }
+        totalSize.height = y + rowHeight
+        return (totalSize, positions)
     }
 }
