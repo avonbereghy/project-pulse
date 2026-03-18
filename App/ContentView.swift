@@ -51,13 +51,18 @@ struct DashboardView: View {
                 if chartsReady {
                     graphSection
                 } else {
-                    HStack(spacing: 16) {
+                    VStack(spacing: 16) {
                         RoundedRectangle(cornerRadius: 10)
                             .fill(Color.primary.opacity(0.04))
-                            .frame(height: 200)
-                        RoundedRectangle(cornerRadius: 10)
-                            .fill(Color.primary.opacity(0.04))
-                            .frame(height: 200)
+                            .frame(height: 180)
+                        HStack(spacing: 16) {
+                            RoundedRectangle(cornerRadius: 10)
+                                .fill(Color.primary.opacity(0.04))
+                                .frame(height: 200)
+                            RoundedRectangle(cornerRadius: 10)
+                                .fill(Color.primary.opacity(0.04))
+                                .frame(height: 200)
+                        }
                     }
                 }
                 repoListSection
@@ -125,13 +130,58 @@ struct DashboardView: View {
 
     private var graphSection: some View {
         HStack(alignment: .top, spacing: 16) {
-            // Contribution heatmap
+            // Left column: Repo Activity + Contribution Activity stacked
+            VStack(spacing: 16) {
+                VStack(alignment: .leading, spacing: 0) {
+                    HStack {
+                        Text("Repo Activity")
+                            .font(.system(.headline, weight: .semibold))
+                        Spacer()
+                        Text("\(viewModel.totalCommits) commits")
+                            .font(.caption)
+                            .foregroundStyle(.tertiary)
+                    }
+                    .padding(.horizontal, 16)
+                    .padding(.top, 14)
+                    .padding(.bottom, 8)
+
+                    repoLineChart
+                        .padding(.horizontal, 16)
+                        .padding(.bottom, 8)
+
+                    repoLegend
+                        .padding(.horizontal, 16)
+                        .padding(.bottom, 14)
+                }
+                .cardStyle()
+
+                VStack(alignment: .leading, spacing: 0) {
+                    HStack {
+                        Text("Contribution Activity")
+                            .font(.system(.headline, weight: .semibold))
+                        Spacer()
+                        Text("\(viewModel.settings.dayRange) days")
+                            .font(.caption)
+                            .foregroundStyle(.tertiary)
+                    }
+                    .padding(.horizontal, 16)
+                    .padding(.top, 14)
+                    .padding(.bottom, 4)
+
+                    ContributionGraphView(commitDays: viewModel.aggregateCommitDays)
+                        .frame(height: 200)
+                }
+                .cardStyle()
+            }
+            .frame(maxWidth: .infinity)
+
+            // Right column: Domain Focus full height
             VStack(alignment: .leading, spacing: 0) {
                 HStack {
-                    Text("Contribution Activity")
+                    Text("Domain Focus")
                         .font(.system(.headline, weight: .semibold))
                     Spacer()
-                    Text("\(viewModel.settings.dayRange) days")
+                    Text("\(viewModel.settings.dayRange)d")
                         .font(.caption)
                         .foregroundStyle(.tertiary)
                 }
@@ -139,32 +189,11 @@ struct DashboardView: View {
                 .padding(.top, 14)
                 .padding(.bottom, 4)
 
-                ContributionGraphView(commitDays: viewModel.aggregateCommitDays)
+                RadarChartView(data: viewModel.radarChartData)
+                    .frame(maxHeight: 340)
+                    .padding(12)
             }
-            .cardStyle()
-
-            // Per-repo overlaid line graph
-            VStack(alignment: .leading, spacing: 0) {
-                HStack {
-                    Text("Repo Activity")
-                        .font(.system(.headline, weight: .semibold))
-                    Spacer()
-                    Text("\(viewModel.totalCommits) commits")
-                        .font(.caption)
-                        .foregroundStyle(.tertiary)
-                }
-                .padding(.horizontal, 16)
-                .padding(.top, 14)
-                .padding(.bottom, 8)
-
-                repoLineChart
-                    .padding(.horizontal, 16)
-                    .padding(.bottom, 8)
-
-                repoLegend
-                    .padding(.horizontal, 16)
-                    .padding(.bottom, 14)
-            }
+            .frame(maxWidth: .infinity, alignment: .topLeading)
             .cardStyle()
         }
     }
@@ -227,6 +256,27 @@ struct DashboardView: View {
                 }
             }
         }
+    }
+
+    private var radarSection: some View {
+        VStack(alignment: .leading, spacing: 0) {
+            HStack {
+                Text("Domain Focus")
+                    .font(.system(.headline, weight: .semibold))
+                Spacer()
+                Text("\(viewModel.settings.dayRange) days")
+                    .font(.caption)
+                    .foregroundStyle(.tertiary)
+            }
+            .padding(.horizontal, 16)
+            .padding(.top, 14)
+            .padding(.bottom, 4)
+
+            RadarChartView(data: viewModel.radarChartData)
+                .frame(height: 380)
+                .padding(16)
+        }
+        .cardStyle()
     }
 
     @ViewBuilder
