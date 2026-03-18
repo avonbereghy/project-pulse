@@ -8,13 +8,14 @@ struct RepoEntry: TimelineEntry {
     let excludedPaths: Set<String>
     let totalCommits: Int
     let commitDays: [CommitDay]
+    let domainData: [(label: String, value: Double)]
 }
 
 struct Provider: TimelineProvider {
     private let dataStore = DataStore()
 
     func placeholder(in context: Context) -> RepoEntry {
-        RepoEntry(date: Date(), repos: [], excludedPaths: [], totalCommits: 0, commitDays: [])
+        RepoEntry(date: Date(), repos: [], excludedPaths: [], totalCommits: 0, commitDays: [], domainData: [])
     }
 
     func getSnapshot(in context: Context, completion: @escaping (RepoEntry) -> Void) {
@@ -50,12 +51,26 @@ struct Provider: TimelineProvider {
             .map { CommitDay(date: $0.key, count: $0.value) }
             .sorted { $0.date < $1.date }
 
+        let tagStore = dataStore.loadDomainTags()
+        var domainCommits: [String: Double] = [:]
+        for repo in active {
+            guard let entry = tagStore.entries[repo.path] else { continue }
+            for tag in entry.tags {
+                domainCommits[tag.displayName, default: 0] += Double(repo.recentCommits)
+            }
+        }
+        let domainData = domainCommits
+            .filter { $0.value > 0 }
+            .map { (label: $0.key, value: $0.value) }
+            .sorted { $0.label < $1.label }
+
         return RepoEntry(
             date: Date(),
             repos: active,
             excludedPaths: excluded,
             totalCommits: active.reduce(0) { $0 + $1.recentCommits },
-            commitDays: commitDays
+            commitDays: commitDays,
+            domainData: domainData
         )
     }
 }
@@ -351,6 +366,8 @@ struct ProjectPulseWidget: WidgetBundle {
         ProjectPulseSmallWidget()
         ProjectPulseMediumWidget()
         ProjectPulseLargeWidget()
+        ProjectPulseRadarMediumWidget()
+        ProjectPulseRadarLargeWidget()
     }
 }
 
@@ -386,6 +403,30 @@ struct ProjectPulseLargeWidget: Widget {
         }
         .configurationDisplayName("Repo Activity")
         .description("Per-repo commit line graphs")
+        .supportedFamilies([.systemLarge])
+    }
+}
+
+struct ProjectPulseRadarMediumWidget: Widget {
+    let kind = "ProjectPulseRadarMedium"
+    var body: some WidgetConfiguration {
+        StaticConfiguration(kind: kind, provider: Provider()) { entry in
+            RadarWidgetMediumView(data: entry.domainData)
+        }
+        .configurationDisplayName("Domain Radar")
+        .description("Commit activity by ML/tech domain")
+        .supportedFamilies([.systemMedium])
+    }
+}
+
+struct ProjectPulseRadarLargeWidget: Widget {
+    let kind = "ProjectPulseRadarLarge"
+    var body: some WidgetConfiguration {
+        StaticConfiguration(kind: kind, provider: Provider()) { entry in
+            RadarWidgetLargeView(data: entry.domainData)
+        }
+        .configurationDisplayName("Domain Radar")
+        .description("Domain focus radar with commit counts")
         .supportedFamilies([.systemLarge])
     }
 }

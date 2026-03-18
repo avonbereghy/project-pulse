@@ -11,6 +11,7 @@ struct DataStore: Sendable {
     private static let reposFile = appSupportDir.appendingPathComponent("repos.json")
     private static let exclusionsFile = appSupportDir.appendingPathComponent("exclusions.json")
     private static let settingsFile = appSupportDir.appendingPathComponent("settings.json")
+    private static let domainTagsFile = appSupportDir.appendingPathComponent("domain-tags.json")
 
     func saveRepos(_ repos: [RepoInfo]) throws {
         let data = try JSONEncoder().encode(repos)
@@ -47,15 +48,57 @@ struct DataStore: Sendable {
         }
         return settings
     }
+
+    // MARK: - Domain Tags (serialized as plain strings — avoids complex enum Codable)
+
+    private struct DomainTagsJSON: Codable {
+        /// repoPath → { tags: [displayName], manual: Bool }
+        struct EntryJSON: Codable {
+            var tags: [String]
+            var manual: Bool
+        }
+        var entries: [String: EntryJSON]
+        var customTags: [String]
+    }
+
+    func saveDomainTags(_ store: DomainTagStore) throws {
+        let json = DomainTagsJSON(
+            entries: store.entries.mapValues { e in
+                DomainTagsJSON.EntryJSON(
+                    tags: e.tags.map(\.displayName),
+                    manual: e.isManualOverride
+                )
+            },
+            customTags: store.customTags.map(\.displayName)
+        )
+        let data = try JSONEncoder().encode(json)
+        try data.write(to: Self.domainTagsFile, options: .atomic)
+    }
+
+    func loadDomainTags() -> DomainTagStore {
+        guard let data = try? Data(contentsOf: Self.domainTagsFile),
+              let json = try? JSONDecoder().decode(DomainTagsJSON.self, from: data) else {
+            return DomainTagStore()
+        }
+        let entries = Dictionary(uniqueKeysWithValues:
+            json.entries.keys.map { path -> (String, RepoTagEntry) in
+                let e = json.entries[path]!
+                return (path, RepoTagEntry(
+                    repoPath: path,
+                    tags: e.tags.map { DomainTag.from(displayName: $0) },
+                    isManualOverride: e.manual
+                ))
+            }
+        )
+        let customTags = json.customTags.map { DomainTag.from(displayName: $0) }
+        return DomainTagStore(entries: entries, customTags: customTags)
+    }
 }
 
 struct AppSettings: Codable, Sendable {
     var displayCount: Int = 10
     var dayRange: Int = 90
     var scanDepth: Int = 5
-    var scanRoot: String = "/Users/avb/Projects"
-    var authorEmails: [String] = [
-        "andy@homeperhaps.com",
-        "65372380+avonbereghy@users.noreply.github.com"
-    ]
+    var scanRoot: String = NSHomeDirectory() + "/Projects"
+    var authorEmails: [String] = []
 }

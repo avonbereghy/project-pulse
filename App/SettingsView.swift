@@ -74,6 +74,17 @@ struct SettingsView: View {
                 }
             }
 
+            Section("Domain Tags") {
+                DomainTagSettingsView(
+                    tagStore: Binding(
+                        get: { viewModel.domainTagStore },
+                        set: { viewModel.updateDomainTags($0) }
+                    ),
+                    repos: viewModel.allRepos,
+                    onRerunAutoTag: { Task { await viewModel.rerunAutoTagging() } }
+                )
+            }
+
             if isDirty {
                 Section {
                     Button("Apply Changes") {

@@ -7,12 +7,9 @@ actor GitScanner {
     let dayRange: Int
 
     init(
-        rootPath: String = "/Users/avb/Projects",
+        rootPath: String = NSHomeDirectory() + "/Projects",
         maxDepth: Int = 5,
-        authorEmails: [String] = [
-            "andy@homeperhaps.com",
-            "65372380+avonbereghy@users.noreply.github.com"
-        ],
+        authorEmails: [String] = [],
         dayRange: Int = 90
     ) {
         self.rootPath = rootPath
@@ -37,6 +34,31 @@ actor GitScanner {
             }
             return results.sorted { ($0.lastCommitDate ?? .distantPast) > ($1.lastCommitDate ?? .distantPast) }
         }
+    }
+
+    func autoTagRepos(_ repos: [RepoInfo], existingTags: DomainTagStore) async -> DomainTagStore {
+        var updated = existingTags
+        let tagger = DomainAutoTagger()
+        let toTag = repos.filter { existingTags.entries[$0.path]?.isManualOverride != true }
+
+        // Run blocking git I/O on a DispatchQueue, not the Swift cooperative pool,
+        // to avoid blocking cooperative threads and causing deadlocks.
+        let lock = NSLock()
+        await withCheckedContinuation { (cont: CheckedContinuation<Void, Never>) in
+            DispatchQueue.global(qos: .utility).async {
+                DispatchQueue.concurrentPerform(iterations: toTag.count) { i in
+                    let repo = toTag[i]
+                    let tags = tagger.autoTag(repoPath: repo.path)
+                    lock.lock()
+                    updated.entries[repo.path] = RepoTagEntry(
+                        repoPath: repo.path, tags: tags, isManualOverride: false
+                    )
+                    lock.unlock()
+                }
+                cont.resume()
+            }
+        }
+        return updated
     }
 
     private func findGitRepos() -> [String] {
@@ -129,19 +151,22 @@ actor GitScanner {
         let process = Process()
         process.executableURL = URL(fileURLWithPath: "/usr/bin/git")
         process.arguments = args
-        process.environment = ["HOME": NSHomeDirectory()]
+        process.environment = ["HOME": NSHomeDirectory(), "GIT_TERMINAL_PROMPT": "0"]
         let pipe = Pipe()
         process.standardOutput = pipe
         process.standardError = FileHandle.nullDevice
 
         do {
             try process.run()
-            process.waitUntilExit()
-            guard process.terminationStatus == 0 else { return nil }
-            let data = pipe.fileHandleForReading.readDataToEndOfFile()
-            return String(data: data, encoding: .utf8)
         } catch {
             return nil
         }
+
+        // Read stdout BEFORE waitUntilExit to prevent pipe-buffer deadlock.
+        let data = pipe.fileHandleForReading.readDataToEndOfFile()
+        process.waitUntilExit()
+
+        guard process.terminationStatus == 0 else { return nil }
+        return String(data: data, encoding: .utf8)
     }
 }

@@ -47,6 +47,7 @@ struct DashboardView: View {
             VStack(alignment: .leading, spacing: 24) {
                 headerSection
                 graphSection
+                radarSection
                 repoListSection
             }
             .padding(24)
@@ -119,6 +120,34 @@ struct DashboardView: View {
             .padding(.bottom, 4)
 
             ContributionGraphView(commitDays: viewModel.aggregateCommitDays)
+        }
+        .background(
+            RoundedRectangle(cornerRadius: 10)
+                .fill(.background)
+                .shadow(color: .black.opacity(0.06), radius: 3, y: 1)
+        )
+        .overlay(
+            RoundedRectangle(cornerRadius: 10)
+                .stroke(Color.primary.opacity(0.05), lineWidth: 1)
+        )
+    }
+
+    private var radarSection: some View {
+        VStack(alignment: .leading, spacing: 0) {
+            HStack {
+                Text("Domain Focus")
+                    .font(.system(.headline, weight: .semibold))
+                Spacer()
+                Text("\(viewModel.settings.dayRange) days")
+                    .font(.caption)
+                    .foregroundStyle(.tertiary)
+            }
+            .padding(.horizontal, 16)
+            .padding(.top, 14)
+            .padding(.bottom, 4)
+
+            RadarChartView(data: viewModel.radarChartData)
+                .padding(16)
         }
         .background(
             RoundedRectangle(cornerRadius: 10)
