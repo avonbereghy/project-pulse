@@ -101,4 +101,5 @@ struct AppSettings: Codable, Sendable {
     var scanDepth: Int = 5
     var scanRoot: String = NSHomeDirectory() + "/Projects"
     var authorEmails: [String] = []
+    var rescanIntervalMinutes: Int = 45
 }

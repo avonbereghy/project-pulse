@@ -19,6 +19,15 @@ struct SettingsView: View {
 
                 Stepper("Display Count: \(editedSettings.displayCount)", value: $editedSettings.displayCount, in: 5...50, step: 5)
                     .onChange(of: editedSettings.displayCount) { isDirty = true }
+
+                Picker("Rescan Interval", selection: $editedSettings.rescanIntervalMinutes) {
+                    Text("15 min").tag(15)
+                    Text("30 min").tag(30)
+                    Text("45 min").tag(45)
+                    Text("60 min").tag(60)
+                    Text("120 min").tag(120)
+                }
+                .onChange(of: editedSettings.rescanIntervalMinutes) { isDirty = true }
             }
 
             Section("Author Emails") {

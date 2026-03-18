@@ -11,9 +11,15 @@ enum RepoSortField: String, CaseIterable {
 @Observable
 @MainActor
 final class RepoListViewModel {
-    var allRepos: [RepoInfo] = []
-    var excludedPaths: Set<String> = []
-    var settings: AppSettings = AppSettings()
+    var allRepos: [RepoInfo] = [] {
+        didSet { invalidateCaches() }
+    }
+    var excludedPaths: Set<String> = [] {
+        didSet { invalidateCaches() }
+    }
+    var settings: AppSettings = AppSettings() {
+        didSet { if oldValue.dayRange != settings.dayRange { invalidateCaches() } }
+    }
     var isScanning: Bool = false
     var lastScanDate: Date? = nil
     var searchText: String = ""
@@ -23,7 +29,13 @@ final class RepoListViewModel {
     var sortAscending: Bool = false {
         didSet { persistSortPrefs() }
     }
-    var domainTagStore: DomainTagStore = DomainTagStore()
+    var domainTagStore: DomainTagStore = DomainTagStore() {
+        didSet { invalidateRadarCache() }
+    }
+
+    // Cached expensive computations
+    private(set) var cachedAggregateCommitDays: [CommitDay] = []
+    private(set) var cachedRadarChartData: [(label: String, value: Double, repoCount: Int)] = []
 
     private let dataStore = DataStore()
     private var rescanTimer: Timer?
@@ -66,7 +78,25 @@ final class RepoListViewModel {
             .reduce(0) { $0 + $1.recentCommits }
     }
 
-    var aggregateCommitDays: [CommitDay] {
+    var aggregateCommitDays: [CommitDay] { cachedAggregateCommitDays }
+
+    var totalCommits: Int {
+        allRepos.filter { !excludedPaths.contains($0.path) }
+            .reduce(0) { $0 + $1.totalCommits }
+    }
+
+    var radarChartData: [(label: String, value: Double, repoCount: Int)] { cachedRadarChartData }
+
+    private func invalidateCaches() {
+        recomputeAggregateCommitDays()
+        recomputeRadarChartData()
+    }
+
+    private func invalidateRadarCache() {
+        recomputeRadarChartData()
+    }
+
+    private func recomputeAggregateCommitDays() {
         let calendar = Calendar.current
         let today = calendar.startOfDay(for: Date())
         var merged: [Date: Int] = [:]
@@ -84,17 +114,12 @@ final class RepoListViewModel {
             }
         }
 
-        return merged
+        cachedAggregateCommitDays = merged
             .map { CommitDay(date: $0.key, count: $0.value) }
             .sorted { $0.date < $1.date }
     }
 
-    var totalCommits: Int {
-        allRepos.filter { !excludedPaths.contains($0.path) }
-            .reduce(0) { $0 + $1.totalCommits }
-    }
-
-    var radarChartData: [(label: String, value: Double, repoCount: Int)] {
+    private func recomputeRadarChartData() {
         let activeRepos = allRepos.filter { !excludedPaths.contains($0.path) }
         var domainCommits: [DomainTag: (commits: Int, repos: Int)] = [:]
         for repo in activeRepos {
@@ -104,7 +129,7 @@ final class RepoListViewModel {
                 domainCommits[tag] = (current.commits + repo.recentCommits, current.repos + 1)
             }
         }
-        return domainCommits
+        cachedRadarChartData = domainCommits
             .filter { $0.value.commits > 0 }
             .map { (label: $0.key.displayName, value: Double($0.value.commits), repoCount: $0.value.repos) }
             .sorted { $0.label < $1.label }
@@ -158,7 +183,7 @@ final class RepoListViewModel {
             if let repos = loadedRepos {
                 allRepos = repos
             }
-            startRescanTimer()
+            restartRescanTimer()
 
             // Then scan in background
             try? await Task.sleep(for: .seconds(2))
@@ -198,8 +223,10 @@ final class RepoListViewModel {
     }
 
     func updateSettings(_ newSettings: AppSettings) {
+        let rescanChanged = newSettings.rescanIntervalMinutes != settings.rescanIntervalMinutes
         settings = newSettings
         try? dataStore.saveSettings(newSettings)
+        if rescanChanged { restartRescanTimer() }
         Task { await scan() }
     }
 
@@ -210,9 +237,10 @@ final class RepoListViewModel {
         try? dataStore.saveSettings(settings)
     }
 
-    private func startRescanTimer() {
+    func restartRescanTimer() {
         rescanTimer?.invalidate()
-        rescanTimer = Timer.scheduledTimer(withTimeInterval: 15 * 60, repeats: true) { [weak self] _ in
+        let interval = TimeInterval(settings.rescanIntervalMinutes) * 60
+        rescanTimer = Timer.scheduledTimer(withTimeInterval: interval, repeats: true) { [weak self] _ in
             Task { @MainActor [weak self] in
                 await self?.scan()
             }

@@ -141,4 +141,5 @@ struct AppSettings: Codable, Sendable {
     var sortAscending: Bool = false
     var windowOpacity: Double = 1.0
     var showMenuBar: Bool = true
+    var rescanIntervalMinutes: Int = 45
 }

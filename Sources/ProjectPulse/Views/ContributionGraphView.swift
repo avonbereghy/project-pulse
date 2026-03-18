@@ -31,10 +31,21 @@ struct ContributionGraphView: View {
         return commitDays[dataIndex]
     }
 
+    private static let monthFormatter: DateFormatter = {
+        let f = DateFormatter()
+        f.dateFormat = "MMM"
+        return f
+    }()
+
+    private static let tooltipDateFormatter: DateFormatter = {
+        let f = DateFormatter()
+        f.dateStyle = .medium
+        return f
+    }()
+
     private var monthLabels: [(Int, String)] {
         var labels: [(Int, String)] = []
-        let formatter = DateFormatter()
-        formatter.dateFormat = "MMM"
+        let formatter = Self.monthFormatter
         var lastMonth = -1
 
         for week in 0..<columns {
@@ -113,9 +124,7 @@ struct ContributionGraphView: View {
 
     private func tooltipText(for cd: CommitDay?) -> String {
         guard let cd else { return "No data" }
-        let formatter = DateFormatter()
-        formatter.dateStyle = .medium
-        let dateStr = formatter.string(from: cd.date)
+        let dateStr = Self.tooltipDateFormatter.string(from: cd.date)
         if cd.count == 0 { return "No commits on \(dateStr)" }
         return "\(cd.count) commit\(cd.count == 1 ? "" : "s") on \(dateStr)"
     }

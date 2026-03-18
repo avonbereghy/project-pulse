@@ -369,13 +369,17 @@ struct DashboardView: View {
         .cardStyle()
     }
 
+    private static let relativeDateFormatter: RelativeDateTimeFormatter = {
+        let f = RelativeDateTimeFormatter()
+        f.unitsStyle = .abbreviated
+        return f
+    }()
+
     private var lastScanText: String {
         guard let date = viewModel.lastScanDate else { return "never" }
         let interval = Date().timeIntervalSince(date)
         if interval < 5 { return "just now" }
-        let formatter = RelativeDateTimeFormatter()
-        formatter.unitsStyle = .abbreviated
-        return formatter.localizedString(for: date, relativeTo: Date())
+        return Self.relativeDateFormatter.localizedString(for: date, relativeTo: Date())
     }
 }
 
