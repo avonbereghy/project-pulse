@@ -37,26 +37,33 @@ actor GitScanner {
     }
 
     func autoTagRepos(_ repos: [RepoInfo], existingTags: DomainTagStore) async -> DomainTagStore {
-        var updated = existingTags
         let tagger = DomainAutoTagger()
         let toTag = repos.filter { existingTags.entries[$0.path]?.isManualOverride != true }
 
         // Run blocking git I/O on a DispatchQueue, not the Swift cooperative pool,
         // to avoid blocking cooperative threads and causing deadlocks.
+        // Collect results into a Sendable array to avoid mutating actor-isolated state.
         let lock = NSLock()
+        var results: [(String, RepoTagEntry)] = []
         await withCheckedContinuation { (cont: CheckedContinuation<Void, Never>) in
             DispatchQueue.global(qos: .utility).async {
                 DispatchQueue.concurrentPerform(iterations: toTag.count) { i in
                     let repo = toTag[i]
                     let tags = tagger.autoTag(repoPath: repo.path)
-                    lock.lock()
-                    updated.entries[repo.path] = RepoTagEntry(
+                    let entry = RepoTagEntry(
                         repoPath: repo.path, tags: tags, isManualOverride: false
                     )
+                    lock.lock()
+                    results.append((repo.path, entry))
                     lock.unlock()
                 }
                 cont.resume()
             }
+        }
+
+        var updated = existingTags
+        for (path, entry) in results {
+            updated.entries[path] = entry
         }
         return updated
     }
@@ -72,9 +79,10 @@ actor GitScanner {
             options: [.skipsHiddenFiles]
         ) else { return repos }
 
+        let rootComponents = rootURL.standardized.pathComponents.count
+
         while let url = enumerator.nextObject() as? URL {
-            let relativePath = url.path.replacingOccurrences(of: rootPath + "/", with: "")
-            let depth = relativePath.components(separatedBy: "/").count
+            let depth = url.standardized.pathComponents.count - rootComponents
 
             if depth > maxDepth {
                 enumerator.skipDescendants()
@@ -104,7 +112,9 @@ actor GitScanner {
 
         var authorArgs: [String] = []
         for email in authorEmails {
-            authorArgs.append(contentsOf: ["--author=\(email)"])
+            let trimmed = email.trimmingCharacters(in: .whitespacesAndNewlines)
+            guard !trimmed.isEmpty, !trimmed.contains("\0"), !trimmed.contains("\n") else { continue }
+            authorArgs.append(contentsOf: ["--author=\(trimmed)"])
         }
 
         let args = ["-C", path, "log", "--format=%at", "--all", "--since=\(sinceStr)"] + authorArgs
@@ -147,11 +157,17 @@ actor GitScanner {
             .sorted { $0.date < $1.date }
     }
 
-    private func runGit(args: [String]) -> String? {
+    private nonisolated func runGit(args: [String]) -> String? {
         let process = Process()
         process.executableURL = URL(fileURLWithPath: "/usr/bin/git")
         process.arguments = args
-        process.environment = ["HOME": NSHomeDirectory(), "GIT_TERMINAL_PROMPT": "0"]
+        process.environment = [
+            "HOME": NSHomeDirectory(),
+            "PATH": "/usr/bin:/bin",
+            "GIT_TERMINAL_PROMPT": "0",
+            "GIT_CONFIG_NOSYSTEM": "1",
+            "GIT_CONFIG_GLOBAL": "/dev/null"
+        ]
         let pipe = Pipe()
         process.standardOutput = pipe
         process.standardError = FileHandle.nullDevice

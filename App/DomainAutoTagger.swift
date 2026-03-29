@@ -194,11 +194,17 @@ struct DomainAutoTagger: Sendable {
         return result
     }
 
-    private func runGit(args: [String]) -> String? {
+    private func runGit(args: [String], maxBytes: Int = 10_000_000) -> String? {
         let process = Process()
         process.executableURL = URL(fileURLWithPath: "/usr/bin/git")
         process.arguments = args
-        process.environment = ["HOME": NSHomeDirectory(), "GIT_TERMINAL_PROMPT": "0"]
+        process.environment = [
+            "HOME": NSHomeDirectory(),
+            "PATH": "/usr/bin:/bin",
+            "GIT_TERMINAL_PROMPT": "0",
+            "GIT_CONFIG_NOSYSTEM": "1",
+            "GIT_CONFIG_GLOBAL": "/dev/null"
+        ]
         let pipe = Pipe()
         process.standardOutput = pipe
         process.standardError = FileHandle.nullDevice
@@ -210,9 +216,18 @@ struct DomainAutoTagger: Sendable {
         }
 
         // Read stdout BEFORE waitUntilExit to prevent pipe-buffer deadlock.
-        // (Large git ls-tree output can exceed the 64KB pipe buffer, blocking the
-        // subprocess write — which then blocks waitUntilExit — forever.)
-        let data = pipe.fileHandleForReading.readDataToEndOfFile()
+        // Cap output to maxBytes to prevent memory exhaustion on huge repos.
+        let handle = pipe.fileHandleForReading
+        var data = Data()
+        while data.count < maxBytes {
+            let chunk = handle.readData(ofLength: min(65536, maxBytes - data.count))
+            if chunk.isEmpty { break }
+            data.append(chunk)
+        }
+        // Drain remaining data to avoid blocking the subprocess
+        if data.count >= maxBytes {
+            while !handle.readData(ofLength: 65536).isEmpty {}
+        }
         process.waitUntilExit()
 
         guard process.terminationStatus == 0 else { return nil }

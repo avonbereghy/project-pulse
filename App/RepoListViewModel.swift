@@ -158,6 +158,7 @@ final class RepoListViewModel {
     }
 
     func load() {
+        guard !isLoading else { return }
         isLoading = true
 
         // Load all data before setting any observable properties
@@ -220,6 +221,11 @@ final class RepoListViewModel {
     func include(_ repo: RepoInfo) {
         excludedPaths.remove(repo.path)
         try? dataStore.saveExclusions(excludedPaths)
+    }
+
+    func updateDisplayCount(_ count: Int) {
+        settings.displayCount = count
+        try? dataStore.saveSettings(settings)
     }
 
     func updateSettings(_ newSettings: AppSettings) {

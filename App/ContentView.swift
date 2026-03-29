@@ -36,7 +36,7 @@ struct ContentView: View {
             .frame(maxWidth: .infinity, maxHeight: .infinity)
         }
         .searchable(text: $vm.searchText, prompt: "Filter repos")
-        .onAppear { viewModel.load() }
+        .task { viewModel.load() }
     }
 }
 
@@ -79,7 +79,7 @@ struct DashboardView: View {
                 HStack(spacing: 12) {
                     StepperControl(value: Binding(
                         get: { viewModel.settings.displayCount },
-                        set: { viewModel.settings.displayCount = $0 }
+                        set: { viewModel.updateDisplayCount($0) }
                     ), label: "Show")
 
                     Button {
@@ -256,27 +256,6 @@ struct DashboardView: View {
                 }
             }
         }
-    }
-
-    private var radarSection: some View {
-        VStack(alignment: .leading, spacing: 0) {
-            HStack {
-                Text("Domain Focus")
-                    .font(.system(.headline, weight: .semibold))
-                Spacer()
-                Text("\(viewModel.settings.dayRange) days")
-                    .font(.caption)
-                    .foregroundStyle(.tertiary)
-            }
-            .padding(.horizontal, 16)
-            .padding(.top, 14)
-            .padding(.bottom, 4)
-
-            RadarChartView(data: viewModel.radarChartData)
-                .frame(height: 380)
-                .padding(16)
-        }
-        .cardStyle()
     }
 
     @ViewBuilder

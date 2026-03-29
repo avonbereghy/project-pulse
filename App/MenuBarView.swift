@@ -32,7 +32,7 @@ struct MenuBarView: View {
             if isVisible {
                 ScrollView {
                     VStack(spacing: 0) {
-                        if viewModel.displayedRepos.isEmpty {
+                        if viewModel.menuBarRepos.isEmpty {
                             Text("No repos found")
                                 .foregroundStyle(.secondary)
                                 .padding(20)

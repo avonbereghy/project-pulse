@@ -31,12 +31,13 @@ struct Provider: TimelineProvider {
     private func loadEntry() -> RepoEntry {
         let repos = (try? dataStore.loadRepos()) ?? []
         let excluded = dataStore.loadExclusions()
+        let settings = dataStore.loadSettings()
         let active = repos.filter { !excluded.contains($0.path) }.sorted { $0.recentCommits > $1.recentCommits }
 
         let calendar = Calendar.current
         let today = calendar.startOfDay(for: Date())
         var merged: [Date: Int] = [:]
-        for i in 0..<90 {
+        for i in 0..<settings.dayRange {
             if let day = calendar.date(byAdding: .day, value: -i, to: today) {
                 merged[day] = 0
             }

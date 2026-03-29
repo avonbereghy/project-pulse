@@ -86,7 +86,10 @@ struct RepoRowView: View {
     }
 
     private func openInTerminal() {
-        let script = "tell application \"Terminal\" to do script \"cd \(repo.path)\""
+        let escapedPath = repo.path
+            .replacingOccurrences(of: "\\", with: "\\\\")
+            .replacingOccurrences(of: "\"", with: "\\\"")
+        let script = "tell application \"Terminal\" to do script \"cd \\\"\(escapedPath)\\\"\""
         if let appleScript = NSAppleScript(source: script) {
             var error: NSDictionary?
             appleScript.executeAndReturnError(&error)
