@@ -5,6 +5,10 @@ import {
   computeTotalCommits,
   computeRecentCommits,
   findRepo,
+  lastCommitStr,
+  domainStr,
+  weekStart,
+  textResult,
 } from "../types.js";
 import type { RepoInfo, DomainTagsFile } from "../types.js";
 import {
@@ -18,32 +22,6 @@ import { assertAppRunning } from "../lifecycle.js";
 // ---------------------------------------------------------------------------
 // Helpers
 // ---------------------------------------------------------------------------
-
-function lastCommitStr(repo: RepoInfo): string {
-  const d = parseDate(repo.lastCommitDate);
-  if (!d) return "—";
-  return d.toLocaleDateString("en-US", {
-    month: "short",
-    day: "numeric",
-    year: "numeric",
-  });
-}
-
-function domainStr(path: string, tags: DomainTagsFile): string {
-  const entry = tags.entries[path];
-  if (!entry || entry.tags.length === 0) return "—";
-  return entry.tags.join(", ");
-}
-
-/** Return the Monday 00:00 UTC for the week containing `date`. */
-function weekStart(date: Date): Date {
-  const d = new Date(date);
-  d.setHours(0, 0, 0, 0);
-  const day = d.getDay(); // 0=Sun … 6=Sat
-  const diff = day === 0 ? 6 : day - 1; // offset to Monday
-  d.setDate(d.getDate() - diff);
-  return d;
-}
 
 /** Build a map of weekStart-timestamp → total commits for a repo. */
 function weeklyTotals(

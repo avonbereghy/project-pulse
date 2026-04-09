@@ -2,27 +2,20 @@ import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { z } from "zod";
 import {
   parseDate,
-  formatDate,
   computeRecentCommits,
   findRepo,
+  weekStart,
+  dateKey,
+  dateFromKey,
+  textResult,
 } from "../types.js";
-import type { RepoInfo, CommitDay } from "../types.js";
+import type { RepoInfo } from "../types.js";
 import { readRepos, readExclusions, filterExcluded } from "../data.js";
 import { assertAppRunning } from "../lifecycle.js";
 
 // ---------------------------------------------------------------------------
 // Helpers
 // ---------------------------------------------------------------------------
-
-/** Return a Date for the start of the ISO week (Monday) containing `d`. */
-function weekStart(d: Date): Date {
-  const copy = new Date(d);
-  copy.setHours(0, 0, 0, 0);
-  const day = copy.getDay(); // 0=Sun … 6=Sat
-  const diff = day === 0 ? 6 : day - 1; // distance back to Monday
-  copy.setDate(copy.getDate() - diff);
-  return copy;
-}
 
 /** Build a Map<dateKey, totalCommits> across the given repos. */
 function aggregateCommitMap(repos: RepoInfo[]): Map<string, number> {
@@ -38,18 +31,6 @@ function aggregateCommitMap(repos: RepoInfo[]): Map<string, number> {
   return map;
 }
 
-function dateKey(d: Date): string {
-  const y = d.getFullYear();
-  const m = String(d.getMonth() + 1).padStart(2, "0");
-  const day = String(d.getDate()).padStart(2, "0");
-  return `${y}-${m}-${day}`;
-}
-
-function dateFromKey(key: string): Date {
-  const [y, m, d] = key.split("-").map(Number);
-  return new Date(y, m - 1, d);
-}
-
 const DAY_NAMES = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
 
 function shortDate(d: Date): string {
@@ -62,10 +43,6 @@ function loadRepos(): RepoInfo[] {
   const repos = readRepos();
   const exclusions = readExclusions();
   return filterExcluded(repos, exclusions);
-}
-
-function textResult(text: string) {
-  return { content: [{ type: "text" as const, text }] };
 }
 
 /** Compute current streak (consecutive days with >=1 commit, counting backward). */

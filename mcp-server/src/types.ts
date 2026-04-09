@@ -94,6 +94,46 @@ export function computeRecentCommits(repo: RepoInfo, days = 7): number {
  * - Array if multiple name matches (ambiguous)
  * - null if no match
  */
+export function lastCommitStr(repo: RepoInfo): string {
+  const d = parseDate(repo.lastCommitDate);
+  return d ? formatDate(d) : "—";
+}
+
+export function domainStr(
+  repoPath: string,
+  tags: DomainTagsFile
+): string {
+  const entry = tags.entries[repoPath];
+  if (!entry || entry.tags.length === 0) return "—";
+  return entry.tags.join(", ");
+}
+
+/** Return the Monday 00:00 local time for the ISO week containing `d`. */
+export function weekStart(d: Date): Date {
+  const copy = new Date(d);
+  copy.setHours(0, 0, 0, 0);
+  const day = copy.getDay(); // 0=Sun … 6=Sat
+  const diff = day === 0 ? 6 : day - 1;
+  copy.setDate(copy.getDate() - diff);
+  return copy;
+}
+
+export function dateKey(d: Date): string {
+  const y = d.getFullYear();
+  const m = String(d.getMonth() + 1).padStart(2, "0");
+  const day = String(d.getDate()).padStart(2, "0");
+  return `${y}-${m}-${day}`;
+}
+
+export function dateFromKey(key: string): Date {
+  const [y, m, d] = key.split("-").map(Number);
+  return new Date(y, m - 1, d);
+}
+
+export function textResult(text: string) {
+  return { content: [{ type: "text" as const, text }] };
+}
+
 export function findRepo(
   repos: RepoInfo[],
   query: string

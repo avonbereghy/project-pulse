@@ -6,6 +6,8 @@ import {
   computeTotalCommits,
   computeRecentCommits,
   findRepo,
+  lastCommitStr,
+  domainStr,
 } from "../types.js";
 import type { RepoInfo, DomainTagsFile } from "../types.js";
 import {
@@ -19,17 +21,6 @@ import { assertAppRunning } from "../lifecycle.js";
 // ---------------------------------------------------------------------------
 // Helpers
 // ---------------------------------------------------------------------------
-
-function lastCommitStr(repo: RepoInfo): string {
-  const d = parseDate(repo.lastCommitDate);
-  return d ? formatDate(d) : "—";
-}
-
-function domainStr(path: string, tags: DomainTagsFile): string {
-  const entry = tags.entries[path];
-  if (!entry || entry.tags.length === 0) return "—";
-  return entry.tags.join(", ");
-}
 
 function domainStrDetailed(path: string, tags: DomainTagsFile): string {
   const entry = tags.entries[path];
