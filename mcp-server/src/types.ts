@@ -88,12 +88,6 @@ export function computeRecentCommits(repo: RepoInfo, days = 7): number {
     .reduce((sum, d) => sum + d.count, 0);
 }
 
-/**
- * Find a repo by name or path. Returns:
- * - Single RepoInfo if exact path match or single name match
- * - Array if multiple name matches (ambiguous)
- * - null if no match
- */
 export function lastCommitStr(repo: RepoInfo): string {
   const d = parseDate(repo.lastCommitDate);
   return d ? formatDate(d) : "—";
@@ -134,6 +128,12 @@ export function textResult(text: string) {
   return { content: [{ type: "text" as const, text }] };
 }
 
+/**
+ * Find a repo by name or path. Returns:
+ * - Single RepoInfo if exact path match or single name match
+ * - Array if multiple name matches (ambiguous)
+ * - null if no match
+ */
 export function findRepo(
   repos: RepoInfo[],
   query: string
