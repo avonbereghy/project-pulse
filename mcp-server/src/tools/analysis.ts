@@ -120,10 +120,7 @@ export function registerAnalysisTools(server: McpServer): void {
             `Ambiguous "${a.query}" — matches:\n${names}`,
           );
         }
-        return {
-          content: [{ type: "text", text: parts.join("\n\n") }],
-          isError: true,
-        };
+        return { ...textResult(parts.join("\n\n")), isError: true };
       }
 
       // Build comparison table
@@ -168,7 +165,7 @@ export function registerAnalysisTools(server: McpServer): void {
         "```",
       ].join("\n");
 
-      return { content: [{ type: "text", text }] };
+      return textResult(text);
     },
   );
 
@@ -277,7 +274,7 @@ export function registerAnalysisTools(server: McpServer): void {
         `- **Prior weeks average:** ${priorAvg.toFixed(1)} commits`,
       ].join("\n");
 
-      return { content: [{ type: "text", text }] };
+      return textResult(text);
     },
   );
 }

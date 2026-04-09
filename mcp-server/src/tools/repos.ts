@@ -8,6 +8,7 @@ import {
   findRepo,
   lastCommitStr,
   domainStr,
+  textResult,
 } from "../types.js";
 import type { RepoInfo, DomainTagsFile } from "../types.js";
 import {
@@ -103,12 +104,11 @@ export function registerRepoTools(server: McpServer): void {
         repos = repos.slice(0, limit);
       }
 
-      const text =
+      return textResult(
         repos.length === 0
           ? "No repositories found."
-          : repoTable(repos, tags);
-
-      return { content: [{ type: "text", text }] };
+          : repoTable(repos, tags)
+      );
     },
   );
 
@@ -127,29 +127,15 @@ export function registerRepoTools(server: McpServer): void {
       const tags = readDomainTags();
       const result = findRepo(allRepos, repo);
 
-      // Ambiguous
       if (Array.isArray(result)) {
         const names = result.map((r) => `- ${r.name} (${r.path})`).join("\n");
-        return {
-          content: [
-            {
-              type: "text",
-              text: `Multiple repositories match **"${repo}"**. Please be more specific:\n\n${names}`,
-            },
-          ],
-        };
+        return textResult(
+          `Multiple repositories match **"${repo}"**. Please be more specific:\n\n${names}`
+        );
       }
 
-      // Not found
       if (result === null) {
-        return {
-          content: [
-            {
-              type: "text",
-              text: `No repository found matching **"${repo}"**.`,
-            },
-          ],
-        };
+        return textResult(`No repository found matching **"${repo}"**.`);
       }
 
       // Single match — build detailed view
@@ -192,7 +178,7 @@ export function registerRepoTools(server: McpServer): void {
         historyLines,
       ].join("\n");
 
-      return { content: [{ type: "text", text }] };
+      return textResult(text);
     },
   );
 
@@ -216,12 +202,11 @@ export function registerRepoTools(server: McpServer): void {
           r.path.toLowerCase().includes(lower),
       );
 
-      const text =
+      return textResult(
         matches.length === 0
           ? `No repositories matching **"${query}"**.`
-          : repoTable(matches, tags);
-
-      return { content: [{ type: "text", text }] };
+          : repoTable(matches, tags)
+      );
     },
   );
 }

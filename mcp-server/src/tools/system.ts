@@ -1,8 +1,7 @@
 import path from "node:path";
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { z } from "zod";
-import { parseDate, formatDate, computeTotalCommits } from "../types.js";
-import type { CommitDay } from "../types.js";
+import { parseDate, formatDate, textResult } from "../types.js";
 import { readRepos, readSettings, getFileMtime } from "../data.js";
 import { assertAppRunning, isAppRunning } from "../lifecycle.js";
 import { scanRepoLive } from "../git.js";
@@ -60,7 +59,7 @@ export function registerSystemTools(server: McpServer): void {
         `**Rescan interval:** ${s.rescanIntervalMinutes} minutes`,
       ].join("\n");
 
-      return { content: [{ type: "text", text }] };
+      return textResult(text);
     },
   );
 
@@ -93,7 +92,7 @@ export function registerSystemTools(server: McpServer): void {
         `- domain-tags.json: ${fileFreshness("domain-tags.json")}`,
       ].join("\n");
 
-      return { content: [{ type: "text", text }] };
+      return textResult(text);
     },
   );
 
@@ -153,7 +152,7 @@ export function registerSystemTools(server: McpServer): void {
         historyLines,
       ].join("\n");
 
-      return { content: [{ type: "text", text }] };
+      return textResult(text);
     },
   );
 }
