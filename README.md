@@ -76,6 +76,52 @@ project-pulse/
 └── build.sh                     # Build + deploy script
 ```
 
+## MCP Server
+
+A built-in MCP server exposes ProjectPulse data as 15 read-only tools for Claude Code and other MCP clients. Query your coding activity conversationally — ask about commit streaks, domain focus, repo comparisons, and more.
+
+**Requires the ProjectPulse app to be running.** The server checks the app process on every tool call.
+
+### Setup
+
+```bash
+cd mcp-server
+./build.sh
+```
+
+Add to your Claude Code config (`~/.claude/settings.json`):
+
+```json
+{
+  "mcpServers": {
+    "project-pulse": {
+      "command": "node",
+      "args": ["/path/to/project-pulse/mcp-server/dist/index.js"]
+    }
+  }
+}
+```
+
+### Tools
+
+| Tool | Description |
+|------|-------------|
+| `list_repos` | List all tracked repositories with commit stats and domain tags |
+| `get_repo` | Get detailed info about a specific repository |
+| `search_repos` | Search repositories by name or path |
+| `activity_summary` | Overview of coding activity across all repositories |
+| `commit_history` | Daily commit counts for a repo or all repos |
+| `streak_analysis` | Commit streak and consistency patterns |
+| `weekly_report` | This week vs last week comparison |
+| `domain_breakdown` | Activity broken down by domain (NLP, App Dev, etc.) |
+| `repo_tags` | View domain tags for a specific repository |
+| `domain_repos` | List all repositories in a specific domain |
+| `compare_repos` | Side-by-side comparison of 2-5 repositories |
+| `trend_analysis` | Weekly commit trends and direction |
+| `get_settings` | Current ProjectPulse configuration |
+| `server_status` | App status, data freshness, server health |
+| `scan_repo` | Live git scan bypassing the cache |
+
 ## License
 
 MIT
